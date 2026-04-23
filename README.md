@@ -24,7 +24,7 @@ Bot Telegram cerdas untuk mencatat dan mengelola pengeluaran harian Anda dengan 
 
 1. Clone repositori ini atau unduh kode sumbernya:
    ```bash
-   git clone <url-repo-anda>
+   git clone https://github.com/NaufalAryaMXB/Telegram-expense-bot
    cd "Expense bot"
    ```
 
