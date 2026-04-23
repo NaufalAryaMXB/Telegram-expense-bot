@@ -1,0 +1,21 @@
+{
+  "name": "expense-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "import:sheets": "node scripts/importSheetsToSqlite.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.13.6",
+    "dotenv": "^17.3.1",
+    "googleapis": "^171.4.0",
+    "node-telegram-bot-api": "^0.67.0"
+  }
+}
