@@ -1,6 +1,6 @@
 # 💸 ExpenseBot — Telegram Bot & Web Analytics Dashboard
 
-Bot Telegram pintar untuk mencatat dan mengelola pengeluaran keuangan harian berbasis AI (**Google Gemini Vision** untuk OCR Struk), terhubung ke database **PostgreSQL**, dan dilengkapi antarmuka **Web Analytics Dashboard** modern berbasis desain *Minimalist Light Edition* (Google Stitch) yang mendukung penuh tampilan **Desktop** dan **Mobile-First**.
+Bot Telegram pintar untuk mencatat dan mengelola pengeluaran keuangan harian berbasis AI (**Google Gemini Vision** untuk OCR Struk), terhubung ke database **PostgreSQL**, dan dilengkapi antarmuka **Web Analytics Dashboard** mendukung penuh tampilan **Desktop** dan **Mobile-First**.
 
 ---
 
