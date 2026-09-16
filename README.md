@@ -1,12 +1,24 @@
-# 💸 ExpenseBot — Telegram Bot & Web Analytics Dashboard
+# ExpenseBot — Telegram Bot & Web Analytics Dashboard
 
-Bot Telegram pintar untuk mencatat dan mengelola pengeluaran keuangan harian berbasis AI (**Google Gemini Vision** untuk OCR Struk), terhubung ke database **PostgreSQL**, dan dilengkapi antarmuka **Web Analytics Dashboard** mendukung penuh tampilan **Desktop** dan **Mobile-First**.
+Bot Telegram pintar untuk mencatat dan mengelola pengeluaran keuangan harian berbasis AI (**Google Gemini Vision** untuk OCR Struk), terhubung ke database **PostgreSQL**, dan dilengkapi antarmuka **Web Analytics Dashboard** yang mendukung penuh tampilan **Desktop** dan **Mobile-First**.
 
 ---
 
-## ✨ Fitur Utama
+## Preview Antarmuka
 
-### 🤖 1. Telegram Bot (Smart Input Pipeline)
+### 1. Desktop Analytics Dashboard
+![ExpenseBot Desktop Dashboard](./docs/images/dashboard-desktop.png)
+
+### 2. Mobile Touch-First Experience
+<p align="left">
+  <img src="./docs/images/dashboard-mobile.png" alt="ExpenseBot Mobile View" width="380"/>
+</p>
+
+---
+
+## Fitur Utama
+
+### 1. Telegram Bot (Smart Input Pipeline)
 - **Pencatatan Cepat Manual**: Cukup ketik pesan di Telegram, contoh: `beli kopi 15000` atau `kopi kenangan 25000 makanan`.
 - **Scan Struk Otomatis (Google Gemini AI Vision)**: Kirim foto struk belanja, AI akan otomatis membaca nama merchant/toko, rincian item barang, kuantitas, harga per item, dan total nominal.
 - **Laporan Instan di Chat**:
@@ -15,12 +27,12 @@ Bot Telegram pintar untuk mencatat dan mengelola pengeluaran keuangan harian ber
   - `/month` — Total pengeluaran bulan berjalan.
   - `/monthlyexpense` — Rekap pengeluaran untuk bulan spesifik (format: `MM-YYYY`).
 
-### 🌐 2. Web Analytics Dashboard (Minimalist Light Edition)
+### 2. Web Analytics Dashboard (Minimalist Light Edition)
 - **Desain Minimalis & Presisi**: Mengadopsi sistem desain *Swiss Fintech Minimalist Light* (Inter + JetBrains Mono, border hairline, tabular alignment).
 - **Responsive Dual-Experience**:
-  - 🖥️ **Desktop View**: Grid KPI 4-kolom berdensitas tinggi, grafik area dinamika pengeluaran harian, segmented bar distribusi kategori, kartu peringkat top vendor, dan tabel audit transaksi lengkap.
-  - 📱 **Mobile View**: Tampilan kartu manifest responsif dengan nama item barang jelas, Floating Action Button (FAB) `+ New Entry`, dan Fixed Bottom Navigation Bar (*Overview, Ledger, Analytics, Vault*).
-- **Proteksi Vault (AES-256 Lockscreen)**: Proteksi password master terenkripsi JWT dengan auto-lock timer countdown 15 menit.
+  - **Desktop View**: Grid KPI 4-kolom berdensitas tinggi, grafik area dinamika pengeluaran harian, segmented bar distribusi kategori, kartu peringkat top vendor, dan tabel audit transaksi lengkap.
+  - **Mobile View**: Tampilan kartu manifest responsif dengan nama item barang jelas, Floating Action Button (FAB) `+ New Entry`, dan Fixed Bottom Navigation Bar (*Overview, Ledger, Analytics, Vault*).
+- **Proteksi Vault (Lockscreen)**: Proteksi password master terenkripsi JWT dengan auto-lock timer countdown 15 menit.
 - **Visualisasi Data Interaktif (Chart.js)**:
   - *Daily Cash Outflow*: Grafik area & garis pengeluaran per hari dengan indikator Peak, Low, dan Median.
   - *Allocation Matrix*: Distribusi anggaran per kategori dengan segmented bar dan persentase share.
@@ -34,7 +46,7 @@ Bot Telegram pintar untuk mencatat dan mengelola pengeluaran keuangan harian ber
 
 ---
 
-## 🛠️ Tech Stack & Persyaratan Sistem
+## Tech Stack & Persyaratan Sistem
 
 * **Runtime & Backend**: [Node.js](https://nodejs.org/) (v18+) & [Express.js](https://expressjs.com/)
 * **Database**: [PostgreSQL](https://www.postgresql.org/) (didukung Neon, Supabase, Railway, Docker, atau PostgreSQL lokal)
@@ -45,7 +57,7 @@ Bot Telegram pintar untuk mencatat dan mengelola pengeluaran keuangan harian ber
 
 ---
 
-## 📦 Instalasi & Konfigurasi
+## Instalasi & Konfigurasi
 
 ### 1. Clone Repositori & Install Dependensi
 ```bash
@@ -78,7 +90,7 @@ SHEET_ID=id_spreadsheet_google_anda
 
 ---
 
-## 🚀 Cara Menjalankan
+## Cara Menjalankan
 
 | Perintah | Deskripsi |
 |---|---|
@@ -90,11 +102,11 @@ SHEET_ID=id_spreadsheet_google_anda
 | `npm run delete:month` | Menghapus data transaksi bulan berjalan (atau: `node scripts/deleteThisMonth.js YYYY-MM`) |
 | `npm run import:sheets` | Import data pengeluaran dari Google Sheets ke database |
 
-> **Tips Cepat Windows**: Klik ganda file `run.bat` untuk langsung menjalankan bot dan web dashboard.
+> **Tips Windows**: Klik ganda file `run.bat` untuk langsung menjalankan bot dan web dashboard.
 
 ---
 
-## 🗄️ Struktur Database (PostgreSQL)
+## Struktur Database (PostgreSQL)
 
 Skema database dibuat secara otomatis saat pertama kali aplikasi dijalankan:
 
@@ -128,7 +140,7 @@ Skema database dibuat secara otomatis saat pertama kali aplikasi dijalankan:
 
 ---
 
-## 🔒 Keamanan
+## Keamanan
 
 - **Zero API Key Leak**: Kredensial `.env` dan file `.json` service account telah terdaftar di `.gitignore`.
 - **JWT Vault Authentication**: Halaman web dilindungi oleh token autentikasi JWT berbasis cookie/header dengan proteksi auto-lock.
