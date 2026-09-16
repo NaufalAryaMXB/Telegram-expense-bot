@@ -54,10 +54,13 @@ async function main() {
     const info = getDatabaseInfo()
 
     console.log(`Import selesai.`)
-    console.log(`Database: ${info.path}`)
+    console.log(`Database: ${info.type} (${info.url})`)
     console.log(`Range: ${range}`)
     console.log(`Berhasil diimport: ${inserted}`)
     console.log(`Dilewati (duplikat): ${skipped}`)
+    
+    const { pool } = require("../database")
+    await pool.end()
 }
 
 main().catch((err) => {

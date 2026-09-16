@@ -4,14 +4,25 @@ require("dotenv").config()
 async function analyzeReceipt(base64Image){
 
  const prompt = `
-Analisa struk belanja pada gambar ini dan berikan format:
+Analisa struk belanja pada gambar ini dan balas HANYA dengan format berikut:
 
-TOKO:
-TOTAL:
+TOKO: <nama toko>
+TOTAL: <angka tanpa Rp, boleh pakai koma/titik>
 ITEMS:
+- <nama item> | qty=<jumlah> | total=<total item bersih>
+- <nama item> | qty=<jumlah> | total=<total item bersih>
 TANGGAL:
 
-Jika tidak terbaca tulis:
+Aturan penting:
+- Jangan tambahkan kalimat pembuka atau penjelasan.
+- Untuk item diskon, jangan jadikan baris terpisah jika diskon jelas milik item tertentu. Gabungkan ke total item tersebut.
+- Jika ada diskon umum yang muncul setelah item tertentu, gabungkan ke item terdekat sebelumnya.
+- Jika ada item gratis atau addon gratis, tulis total=0.
+- Pastikan jumlah total semua item sama dengan TOTAL.
+- Jangan tulis item tanpa nilai total. Jika total item tidak diketahui, tulis total=ERROR.
+- Jika nama toko atau tanggal tidak terbaca, tetap isi dengan ERROR.
+
+Jika benar-benar tidak terbaca, tulis:
 ERROR
 `
 

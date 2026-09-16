@@ -5,6 +5,12 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "dashboard": "node server.js",
+    "dev": "concurrently -n \"BOT,DASHBOARD\" -c \"cyan,magenta\" \"npm:start\" \"npm:dashboard\"",
+    "all": "npm run dev",
+    "test:db": "node scripts/testDbConnection.js",
+    "migrate:postgres": "node scripts/migrateSqliteToPostgres.js",
+    "delete:month": "node scripts/deleteThisMonth.js",
     "import:sheets": "node scripts/importSheetsToSqlite.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -14,8 +20,16 @@
   "type": "commonjs",
   "dependencies": {
     "axios": "^1.13.6",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
     "dotenv": "^17.3.1",
+    "express": "^5.2.1",
     "googleapis": "^171.4.0",
-    "node-telegram-bot-api": "^0.67.0"
+    "jsonwebtoken": "^9.0.3",
+    "node-telegram-bot-api": "^0.67.0",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
   }
 }

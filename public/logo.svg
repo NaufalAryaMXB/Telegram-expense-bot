@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 36" fill="none">
+  <!-- Minimalist Geometric Light Logo Mark -->
+  <rect x="2" y="4" width="28" height="28" rx="6" fill="#18181b"/>
+  <circle cx="11" cy="18" r="2.5" fill="#ffffff"/>
+  <circle cx="21" cy="18" r="2.5" fill="#a1a1aa"/>
+  <path d="M10 24C12 25.5 20 25.5 22 24" stroke="#71717a" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- Typography for light mode -->
+  <text x="38" y="23" fill="#09090b" font-family="'Inter', -apple-system, sans-serif" font-size="15" font-weight="600" letter-spacing="-0.03em">Expense<tspan fill="#71717a" font-weight="400">Bot</tspan></text>
+</svg>

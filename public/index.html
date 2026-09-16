@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html class="light" lang="id">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+    <title>ExpenseBot — Zero-Knowledge Ledger & Web Analytics</title>
+    
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <!-- Material Symbols Outlined -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+    
+    <!-- Tailwind CSS CDN with forms and container queries -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        surface: '#ffffff',
+                        'surface-subtle': '#fafafa',
+                        'surface-muted': '#f4f4f5',
+                        'surface-border': '#e4e4e7',
+                        'surface-border-subtle': '#f0f0f2',
+                        'text-primary': '#09090b',
+                        'text-secondary': '#52525b',
+                        'text-muted': '#71717a',
+                        'text-faint': '#a1a1aa',
+                        'accent-emerald': '#059669',
+                        'accent-emerald-soft': '#ecfdf5',
+                        'accent-amber': '#d97706',
+                        'accent-amber-soft': '#fffbeb',
+                        'accent-rose': '#e11d48',
+                        'accent-rose-soft': '#fff1f2',
+                        'accent-blue': '#2563eb',
+                        'accent-blue-soft': '#eff6ff'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="styles.css"/>
+</head>
+<body class="bg-surface-subtle font-sans text-text-primary antialiased selection:bg-zinc-200 selection:text-zinc-900 min-h-screen flex flex-col">
+
+    <!-- ======================================================== -->
+    <!-- AUTHENTICATION LOCKSCREEN (MINIMALIST VAULT)             -->
+    <!-- ======================================================== -->
+    <div id="authScreen" class="fixed inset-0 bg-white/90 backdrop-blur-md flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
+        <div class="bg-white border border-surface-border rounded-sm p-8 w-full max-w-sm shadow-[0_4px_24px_rgba(0,0,0,0.06)] text-center relative animate-fade-in">
+            <!-- Minimalist Logo in Auth -->
+            <div class="flex items-center justify-center mb-5">
+                <img alt="ExpenseBot Logo" class="h-8 w-auto object-contain" src="./logo.svg"/>
+            </div>
+
+            <div class="space-y-1 mb-6">
+                <h2 class="text-base font-semibold tracking-tight text-text-primary uppercase font-mono">Encrypted Vault</h2>
+                <p class="text-xs text-text-muted font-mono">Zero-Knowledge Financial Protocol</p>
+            </div>
+            
+            <form id="loginForm" onsubmit="handleLogin(event)" class="text-left space-y-4">
+                <div>
+                    <label for="passwordInput" class="block text-[11px] font-mono uppercase tracking-wider text-text-secondary mb-1.5 font-medium">
+                        Master Cipher Key
+                    </label>
+                    <div class="relative flex items-center">
+                        <span class="material-symbols-outlined absolute left-3 text-text-muted text-[17px]">key</span>
+                        <input type="password" id="passwordInput" placeholder="Masukkan master password..." autocomplete="current-password" required autofocus
+                            class="w-full pl-9 pr-4 py-2 bg-surface-subtle border border-surface-border rounded-sm text-xs font-mono text-text-primary placeholder:text-text-faint focus:outline-none focus:border-zinc-900 focus:bg-white transition shadow-sm">
+                    </div>
+                </div>
+                
+                <div id="loginError" class="hidden flex items-center gap-2 p-2.5 rounded-sm bg-accent-rose-soft border border-rose-200 text-accent-rose text-xs font-mono" role="alert">
+                    <span class="material-symbols-outlined text-[16px]">error</span>
+                    <span id="loginErrorMsg">Akses ditolak. Password salah.</span>
+                </div>
+                
+                <button type="submit" id="loginBtn" class="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white font-mono text-xs font-medium uppercase tracking-wider rounded-sm transition shadow-sm flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-[16px]">lock_open</span>
+                    <span>Buka Vault</span>
+                </button>
+            </form>
+            
+            <div class="mt-6 pt-4 border-t border-surface-border-subtle text-[11px] font-mono text-text-faint flex items-center justify-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-accent-emerald"></span>
+                <span>AES-256 GCM ENCRYPTION ACTIVE</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- MAIN DASHBOARD APPLICATION                               -->
+    <!-- ======================================================== -->
+    <div id="dashboardApp" class="hidden flex-1 flex flex-col min-h-screen">
+        
+        <!-- Top Navigation & Header Bar (Desktop & Mobile) -->
+        <header class="fixed top-0 left-0 w-full z-40 bg-white/90 backdrop-blur-md border-b border-surface-border">
+            <div class="w-full max-w-[1440px] mx-auto px-4 sm:px-6 md:px-10 flex flex-col justify-between pt-2.5 sm:pt-3 pb-0">
+                <div class="flex items-center justify-between h-12 sm:h-14">
+                    <!-- Brand & Month Selector -->
+                    <div class="flex items-center gap-3 sm:gap-6">
+                        <div class="flex items-center gap-2.5 sm:gap-3">
+                            <img alt="ExpenseBot Logo" class="h-6 sm:h-7 w-auto object-contain" src="./logo.svg"/>
+                            <span class="text-[10px] sm:text-[11px] font-mono uppercase tracking-wider text-text-muted border border-surface-border px-1.5 py-0.5 rounded-sm bg-surface-subtle">v2.4</span>
+                        </div>
+                        <div class="h-4 w-px bg-surface-border hidden sm:block"></div>
+                        
+                        <!-- Month Picker -->
+                        <div class="flex items-center bg-white border border-surface-border rounded-sm px-1.5 sm:px-2 py-0.5 sm:py-1 gap-1 text-[12px] sm:text-[13px] shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                            <button id="prevMonthBtn" onclick="changeMonthOffset(-1)" aria-label="Bulan Sebelumnya" class="text-text-muted hover:text-text-primary transition-colors flex items-center p-0.5" type="button">
+                                <span class="material-symbols-outlined text-[15px]">chevron_left</span>
+                            </button>
+                            <select id="monthSelect" onchange="handleMonthChange(this.value)" class="bg-transparent font-medium font-mono text-[11px] sm:text-[12px] text-text-primary px-1 sm:px-2 tracking-tight border-0 py-0 focus:ring-0 cursor-pointer">
+                                <option value="">Memuat...</option>
+                            </select>
+                            <button id="nextMonthBtn" onclick="changeMonthOffset(1)" aria-label="Bulan Berikutnya" class="text-text-muted hover:text-text-primary transition-colors flex items-center p-0.5" type="button">
+                                <span class="material-symbols-outlined text-[15px]">chevron_right</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions, Telemetry & Profile -->
+                    <div class="flex items-center gap-2 sm:gap-4">
+                        <div class="hidden lg:flex items-center gap-2 px-2.5 py-1 bg-white border border-surface-border rounded-sm font-mono text-[11px] text-text-muted shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                            <span class="w-1.5 h-1.5 rounded-full bg-accent-emerald animate-pulse"></span>
+                            <span id="tgSyncHeaderLabel">Telegram Synced</span>
+                        </div>
+                        
+                        <button onclick="focusGlobalSearch()" class="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 bg-white border border-surface-border rounded-sm font-mono text-[11px] sm:text-[12px] text-text-secondary hover:text-text-primary hover:border-zinc-400 transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)]" type="button">
+                            <span class="material-symbols-outlined text-[14px] sm:text-[15px] text-text-muted">search</span>
+                            <span class="font-sans text-xs hidden sm:inline">Search</span>
+                            <kbd class="text-text-faint font-mono text-[10px] ml-1 bg-surface-subtle px-1 py-0.5 border border-surface-border rounded hidden md:inline">⌘K</kbd>
+                        </button>
+                        
+                        <button onclick="handleLogout(true)" class="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 bg-white border border-surface-border rounded-sm font-mono text-[11px] text-text-secondary hover:text-accent-rose hover:border-rose-300 transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)]" type="button" title="Kunci Vault">
+                            <span class="material-symbols-outlined text-[14px]">lock</span>
+                            <span class="hidden sm:inline">Lock Vault</span>
+                        </button>
+                        
+                        <div class="w-7 h-7 rounded-sm bg-zinc-900 text-white flex items-center justify-center text-[11px] font-mono font-medium shrink-0" title="User Profile">
+                            EB
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Tabs (Desktop) -->
+                <div class="hidden sm:flex h-10 items-center overflow-x-auto border-t border-surface-border-subtle mt-1 no-scrollbar">
+                    <nav class="flex items-center gap-6 h-full text-xs font-mono uppercase tracking-wider">
+                        <a href="#overviewSection" class="h-full flex items-center text-text-primary font-semibold border-b-2 border-zinc-900 -mb-px whitespace-nowrap">Overview</a>
+                        <a href="#ledgerSection" class="h-full flex items-center text-text-muted hover:text-text-primary transition-colors whitespace-nowrap border-b-2 border-transparent -mb-px">Transactions &amp; OCR</a>
+                        <a href="#analyticsSection" class="h-full flex items-center text-text-muted hover:text-text-primary transition-colors whitespace-nowrap border-b-2 border-transparent -mb-px">Category Budgets</a>
+                        <a href="#merchantsSection" class="h-full flex items-center text-text-muted hover:text-text-primary transition-colors whitespace-nowrap border-b-2 border-transparent -mb-px">Top Merchants</a>
+                    </nav>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="w-full max-w-[1440px] mx-auto px-4 sm:px-6 md:px-10 pt-20 sm:pt-32 pb-24 sm:pb-16 min-h-[calc(100vh-112px)] flex-1">
+            <div class="flex flex-col w-full space-y-6 sm:space-y-10">
+
+                <!-- 1. Security & Sync Banner: Quiet Terminal Ribbon -->
+                <section class="w-full bg-white border border-surface-border rounded-sm p-3 sm:p-3.5 sm:px-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                        <div class="flex items-center gap-1.5 text-accent-emerald">
+                            <span class="material-symbols-outlined text-[16px]">verified_user</span>
+                            <span class="font-mono text-[11px] uppercase tracking-wider font-medium text-text-primary">AES-256 Vault Active</span>
+                        </div>
+                        <span class="text-surface-border hidden sm:inline">|</span>
+                        <div class="flex items-center gap-1.5 font-mono text-[11px] text-text-secondary">
+                            <span>Auto-locks in</span>
+                            <span class="font-mono font-semibold text-text-primary bg-surface-muted px-1.5 py-0.5 rounded text-[11px]" id="vault-timer">15:00</span>
+                            <button onclick="handleLogout(true)" class="text-text-muted hover:text-accent-rose transition-colors underline decoration-surface-border hover:decoration-rose-400 ml-1 uppercase text-[10px]" type="button">Lock Now</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                        <div class="flex items-center gap-2 font-mono text-[11px] text-text-secondary">
+                            <span class="w-1.5 h-1.5 rounded-full bg-accent-emerald"></span>
+                            <span class="text-text-primary font-medium">@ExpenseBot_Sync</span>
+                            <span class="hidden lg:inline text-text-muted" id="syncSubText">· Multi-channel capture active</span>
+                        </div>
+                        <button onclick="syncNow()" id="btnSyncNow" class="flex items-center gap-1.5 px-3 py-1 bg-surface-subtle hover:bg-surface-muted border border-surface-border text-text-primary font-mono text-[11px] tracking-wider uppercase transition-colors rounded-sm shadow-sm" type="button">
+                            <span class="material-symbols-outlined text-[13px] text-text-muted" id="syncIconElem">sync</span>
+                            <span>Sync Now</span>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- 2. KPI Metric Cards: Monolithic Minimalist White Ledger Blocks -->
+                <section id="overviewSection" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+                    <!-- Card 1: Total Spend -->
+                    <div class="bg-white border border-surface-border rounded-sm p-5 sm:p-6 flex flex-col justify-between hover:border-zinc-300 transition-colors shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+                        <div class="flex items-center justify-between pb-2 sm:pb-3">
+                            <span class="font-mono text-[11px] uppercase tracking-wider text-text-muted font-medium">Total Spend</span>
+                            <span class="material-symbols-outlined text-text-faint text-[18px]">account_balance_wallet</span>
+                        </div>
+                        <div class="space-y-1 my-1 sm:my-2">
+                            <div class="font-sans text-[26px] sm:text-[30px] leading-tight font-semibold tracking-tight text-text-primary tabular-nums" id="kpiTotalSpend">
+                                Rp 0
+                            </div>
+                            <div class="flex items-center gap-1.5 font-mono text-[11px] text-accent-emerald font-medium" id="kpiTrendContainer">
+                                <span class="material-symbols-outlined text-[14px]" id="kpiTrendIcon">trending_down</span>
+                                <span id="kpiTrendBadge">0% vs bulan lalu</span>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-surface-border-subtle font-mono text-[11px] text-text-muted flex justify-between items-center">
+                            <span>Status</span>
+                            <span class="font-medium text-text-secondary" id="kpiBudgetStatus">Active Ledger</span>
+                        </div>
+                    </div>
+
+                    <!-- Card 2: Daily Pace -->
+                    <div class="bg-white border border-surface-border rounded-sm p-5 sm:p-6 flex flex-col justify-between hover:border-zinc-300 transition-colors shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+                        <div class="flex items-center justify-between pb-2 sm:pb-3">
+                            <span class="font-mono text-[11px] uppercase tracking-wider text-text-muted font-medium">Daily Pace</span>
+                            <span class="material-symbols-outlined text-text-faint text-[18px]">speed</span>
+                        </div>
+                        <div class="space-y-2 my-1 sm:my-2">
+                            <div class="font-sans text-[26px] sm:text-[30px] leading-tight font-semibold tracking-tight text-text-primary tabular-nums">
+                                <span id="kpiDailyPace">Rp 0</span>
+                                <span class="font-mono text-[11px] text-text-muted font-normal tracking-normal">/ day</span>
+                            </div>
+                            <div class="w-full bg-surface-muted h-1.5 rounded-full overflow-hidden">
+                                <div id="kpiDailyPaceBar" class="bg-zinc-900 h-full rounded-full transition-all duration-500" style="width: 50%;"></div>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-surface-border-subtle flex items-center justify-between font-mono text-[11px] text-text-muted">
+                            <span>Bulan Berjalan</span>
+                            <span class="text-text-primary font-medium" id="kpiDailyIndexLabel">Rata-rata Harian</span>
+                        </div>
+                    </div>
+
+                    <!-- Card 3: Reconciled Entries -->
+                    <div class="bg-white border border-surface-border rounded-sm p-5 sm:p-6 flex flex-col justify-between hover:border-zinc-300 transition-colors shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+                        <div class="flex items-center justify-between pb-2 sm:pb-3">
+                            <span class="font-mono text-[11px] uppercase tracking-wider text-text-muted font-medium">Reconciled Entries</span>
+                            <span class="material-symbols-outlined text-text-faint text-[18px]">receipt_long</span>
+                        </div>
+                        <div class="space-y-2 my-1 sm:my-2">
+                            <div class="font-sans text-[26px] sm:text-[30px] leading-tight font-semibold tracking-tight text-text-primary tabular-nums">
+                                <span id="kpiReconciledCount">0</span> <span class="text-[14px] text-text-muted font-normal font-sans tracking-normal">transactions</span>
+                            </div>
+                            <div class="font-mono text-[11px] text-text-secondary flex items-center gap-1.5 flex-wrap" id="kpiSourceBreakdown">
+                                <span>-- TG</span> · <span>-- OCR</span> · <span>-- Sheet</span> · <span>-- Web</span>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-surface-border-subtle flex items-center gap-1.5 font-mono text-[11px] text-accent-emerald font-medium">
+                            <span class="w-1.5 h-1.5 rounded-full bg-accent-emerald"></span>
+                            <span>Multi-channel Sync</span>
+                        </div>
+                    </div>
+
+                    <!-- Card 4: Top Outflow Node -->
+                    <div class="bg-white border border-surface-border rounded-sm p-5 sm:p-6 flex flex-col justify-between hover:border-zinc-300 transition-colors shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+                        <div class="flex items-center justify-between pb-2 sm:pb-3">
+                            <span class="font-mono text-[11px] uppercase tracking-wider text-text-muted font-medium">Top Outflow Node</span>
+                            <span class="material-symbols-outlined text-text-faint text-[18px]">storefront</span>
+                        </div>
+                        <div class="space-y-1 my-1 sm:my-2">
+                            <div class="font-sans text-[17px] sm:text-[18px] font-semibold text-text-primary truncate" id="kpiTopMerchantName">
+                                Belum ada data
+                            </div>
+                            <div class="font-mono text-[18px] sm:text-[20px] text-text-primary font-semibold tabular-nums" id="kpiTopMerchantAmount">
+                                Rp 0
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-surface-border-subtle font-mono text-[11px] text-text-muted flex justify-between items-center">
+                            <span>Volume Ratio</span>
+                            <span class="text-text-primary font-medium" id="kpiTopMerchantRatio">-- % of total</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. Analytical Visualizations: Daily Outflow & Category Distribution -->
+                <section id="analyticsSection" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Daily Cash Outflow Dynamics Chart (7 cols) -->
+                    <div class="lg:col-span-7 bg-white border border-surface-border rounded-sm p-5 sm:p-6 flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+                        <div>
+                            <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 pb-4 border-b border-surface-border-subtle">
+                                <div>
+                                    <span class="font-mono text-[11px] uppercase tracking-widest text-text-muted block" id="chartDateRangeLabel">Dynamics // Monthly Track</span>
+                                    <h2 class="font-sans text-[18px] sm:text-[20px] font-semibold text-text-primary tracking-tight">Daily Cash Outflow</h2>
+                                </div>
+                                <div class="flex items-center gap-4 font-mono text-[11px]">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="w-3 h-0.5 bg-zinc-900"></span>
+                                        <span class="text-text-secondary">Daily Spend</span>
+                                    </div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="w-3 h-0.5 bg-accent-emerald border-b border-dashed border-accent-emerald"></span>
+                                        <span class="text-text-muted">Average</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Daily Spending Chart.js Canvas -->
+                            <div class="w-full relative pt-4 pb-2 h-64">
+                                <canvas id="dailyChartCanvas"></canvas>
+                            </div>
+                        </div>
+                        <div class="pt-4 border-t border-surface-border-subtle flex flex-wrap items-center justify-between font-mono text-[11px] text-text-muted gap-2">
+                            <span>Peak: <strong class="text-text-primary font-medium tabular-nums" id="chartPeakLabel">Rp 0</strong></span>
+                            <span>Low: <strong class="text-text-primary font-medium tabular-nums" id="chartLowLabel">Rp 0</strong></span>
+                            <span>Median: <strong class="text-text-primary font-medium tabular-nums" id="chartMedianLabel">Rp 0</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- Category Allocation Breakdown (5 cols) -->
+                    <div class="lg:col-span-5 bg-white border border-surface-border rounded-sm p-5 sm:p-6 flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+                        <div>
+                            <div class="flex items-center justify-between pb-1">
+                                <span class="font-mono text-[11px] uppercase tracking-widest text-text-muted block">Allocation Matrix</span>
+                                <span class="font-mono text-[11px] text-text-muted" id="categoryCountLabel">0 Kategori</span>
+                            </div>
+                            <h2 class="font-sans text-[18px] sm:text-[20px] font-semibold text-text-primary tracking-tight mb-3">Budget Distribution</h2>
+                            
+                            <!-- Minimal Segmented Horizontal Bar -->
+                            <div class="w-full h-2.5 flex overflow-hidden rounded-full bg-surface-muted gap-0.5 my-3" id="categoryBarSegmented">
+                                <div class="bg-zinc-300 w-full" title="Belum ada data"></div>
+                            </div>
+                            
+                            <!-- Category Ledger Rows -->
+                            <div class="divide-y divide-surface-border-subtle pt-1 max-h-52 overflow-y-auto" id="categoryLedgerList">
+                                <div class="py-4 text-center font-mono text-xs text-text-muted">Memuat kategori...</div>
+                            </div>
+                        </div>
+                        <div class="pt-4 border-t border-surface-border-subtle flex items-center justify-between font-mono text-[11px] text-text-muted">
+                            <span>Status Reconciled</span>
+                            <span class="text-accent-emerald font-medium" id="categoryReconciledLabel">100% Categorized</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. Top Merchant Rankings -->
+                <section id="merchantsSection" class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="font-mono text-[11px] uppercase tracking-widest text-text-muted block">Concentration</span>
+                            <h3 class="font-sans text-[18px] sm:text-[20px] font-semibold text-text-primary tracking-tight">Primary Outflow Merchants</h3>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4" id="topMerchantsList">
+                        <div class="col-span-full py-6 text-center font-mono text-xs text-text-muted bg-white border border-surface-border rounded-sm">
+                            Memuat daftar merchant...
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 5. Transaction & OCR Ledger (CRUD Table + Mobile Manifest) -->
+                <section id="ledgerSection" class="bg-white border border-surface-border rounded-sm p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+                    <!-- Action Header & Filters -->
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div>
+                            <span class="font-mono text-[11px] uppercase tracking-widest text-text-muted block">Zero-Knowledge Ledger</span>
+                            <h3 class="font-sans text-[18px] sm:text-[20px] font-semibold text-text-primary tracking-tight">Transactions &amp; OCR Intake</h3>
+                        </div>
+                        
+                        <!-- Controls & Actions -->
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button onclick="openAddTransactionModal()" class="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-mono text-[11px] uppercase tracking-wider font-medium flex items-center gap-1.5 transition-colors rounded-sm shadow-sm" type="button">
+                                <span class="material-symbols-outlined text-[15px]">add</span>
+                                <span>New Entry</span>
+                            </button>
+                            <button onclick="exportCsv()" class="px-3 py-1.5 bg-white hover:bg-surface-subtle border border-surface-border text-text-primary font-mono text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-colors rounded-sm shadow-sm" type="button" title="Download CSV">
+                                <span class="material-symbols-outlined text-[15px] text-text-muted">download</span>
+                                <span>Export CSV</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filter Bar -->
+                    <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-surface-subtle border border-surface-border rounded-sm p-1.5">
+                        <!-- Search Input -->
+                        <div class="flex items-center gap-2 px-3 flex-1 bg-white border border-surface-border rounded-sm py-1">
+                            <span class="material-symbols-outlined text-text-faint text-[16px]">search</span>
+                            <input id="tableSearchInput" oninput="handleSearch(this.value)" class="bg-transparent font-sans text-xs text-text-primary placeholder:text-text-faint w-full focus:outline-none" placeholder="Filter toko, barang, catatan OCR... (⌘F)" type="text"/>
+                        </div>
+                        <!-- Source Filter Tabs -->
+                        <div class="flex items-center overflow-x-auto gap-1 text-[11px] font-mono no-scrollbar" id="sourceFilterGroup">
+                            <button onclick="setSourceFilter('all')" data-source="all" class="filter-pill px-3 py-1 bg-zinc-900 text-white font-medium rounded-sm uppercase whitespace-nowrap shadow-sm transition-colors" type="button">All</button>
+                            <button onclick="setSourceFilter('manual')" data-source="manual" class="filter-pill px-3 py-1 text-text-muted hover:text-text-primary hover:bg-white rounded-sm uppercase whitespace-nowrap transition-colors" type="button">Telegram</button>
+                            <button onclick="setSourceFilter('receipt')" data-source="receipt" class="filter-pill px-3 py-1 text-text-muted hover:text-text-primary hover:bg-white rounded-sm uppercase whitespace-nowrap transition-colors" type="button">AI OCR</button>
+                            <button onclick="setSourceFilter('sheet_import')" data-source="sheet_import" class="filter-pill px-3 py-1 text-text-muted hover:text-text-primary hover:bg-white rounded-sm uppercase whitespace-nowrap transition-colors" type="button">Sheet</button>
+                            <button onclick="setSourceFilter('dashboard')" data-source="dashboard" class="filter-pill px-3 py-1 text-text-muted hover:text-text-primary hover:bg-white rounded-sm uppercase whitespace-nowrap transition-colors" type="button">Web</button>
+                        </div>
+                    </div>
+
+                    <!-- Desktop Table Container (Visible on md+) -->
+                    <div class="hidden md:block w-full overflow-x-auto border border-surface-border rounded-sm">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-surface-subtle border-b border-surface-border font-mono text-[11px] uppercase tracking-wider text-text-muted font-medium">
+                                    <th class="py-3 px-4">Date &amp; Timestamp</th>
+                                    <th class="py-3 px-4">Merchant &amp; Itemization</th>
+                                    <th class="py-3 px-4">Category</th>
+                                    <th class="py-3 px-4">Source Pipeline</th>
+                                    <th class="py-3 px-4 text-right">Amount</th>
+                                    <th class="py-3 px-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactionsTableBody" class="divide-y divide-surface-border text-xs font-sans">
+                                <tr>
+                                    <td colspan="6" class="py-8 text-center font-mono text-xs text-text-muted">Memuat transaksi...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Mobile Manifest Cards (Visible on mobile screens < md) -->
+                    <div class="md:hidden space-y-2.5" id="mobileTransactionsList">
+                        <div class="py-8 text-center font-mono text-xs text-text-muted bg-surface-subtle rounded-sm">
+                            Memuat transaksi mobile...
+                        </div>
+                    </div>
+
+                    <!-- Table Pagination & Footer -->
+                    <div class="pt-3 flex flex-col sm:flex-row items-center justify-between gap-3 font-mono text-[11px] text-text-muted">
+                        <div class="flex items-center gap-3">
+                            <span id="tableCounterLabel">Showing 0–0 of 0 ledger entries</span>
+                            <span>·</span>
+                            <span class="text-accent-emerald font-medium">Zero reconciliation errors</span>
+                        </div>
+                        <div class="flex items-center gap-1" id="tablePaginationContainer">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+
+        <!-- Minimal Editorial Footer -->
+        <footer class="w-full border-t border-surface-border bg-white py-5 hidden sm:block">
+            <div class="max-w-[1440px] mx-auto px-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-3 font-mono text-[11px] text-text-muted">
+                <div class="flex items-center gap-3">
+                    <span class="font-medium text-text-secondary">EXPENSEBOT PROTOCOL // ENCRYPTED VAULT</span>
+                    <span class="text-surface-border">•</span>
+                    <span>POSTGRESQL ZERO-KNOWLEDGE LEDGER</span>
+                </div>
+                <div>EXPENSEBOT © 2026</div>
+            </div>
+        </footer>
+
+        <!-- Mobile Floating Action Button (FAB) -->
+        <aside class="sm:hidden fixed bottom-20 right-4 z-30">
+            <button onclick="openAddTransactionModal()" class="h-12 px-4 rounded-full bg-zinc-900 text-white shadow-xl flex items-center gap-1.5 hover:bg-zinc-800 active:scale-95 transition-all" id="quickAddMobileBtn" type="button">
+                <span class="material-symbols-outlined text-[20px] text-emerald-400">add</span>
+                <span class="font-mono text-[11px] font-semibold tracking-wide uppercase">New Entry</span>
+            </button>
+        </aside>
+
+        <!-- Mobile Bottom Navigation Bar (Fixed at bottom on mobile) -->
+        <nav class="sm:hidden fixed bottom-0 left-0 w-full z-40 pb-safe bg-white/95 backdrop-blur-md border-t border-surface-border shadow-[0_-2px_10px_rgba(0,0,0,0.03)]">
+            <div class="h-14 px-4 flex items-center justify-around font-mono text-[10px]">
+                <a href="#overviewSection" class="flex flex-col items-center justify-center min-w-[56px] h-full gap-0.5 text-zinc-900 font-semibold">
+                    <span class="material-symbols-outlined text-[20px]">space_dashboard</span>
+                    <span>Overview</span>
+                </a>
+                <a href="#ledgerSection" class="flex flex-col items-center justify-center min-w-[56px] h-full gap-0.5 text-text-muted hover:text-text-primary transition-colors">
+                    <span class="material-symbols-outlined text-[20px]">receipt_long</span>
+                    <span>Ledger</span>
+                </a>
+                <a href="#analyticsSection" class="flex flex-col items-center justify-center min-w-[56px] h-full gap-0.5 text-text-muted hover:text-text-primary transition-colors">
+                    <span class="material-symbols-outlined text-[20px]">query_stats</span>
+                    <span>Analytics</span>
+                </a>
+                <button onclick="handleLogout(true)" class="flex flex-col items-center justify-center min-w-[56px] h-full gap-0.5 text-text-muted hover:text-accent-rose transition-colors" type="button">
+                    <span class="material-symbols-outlined text-[20px]">shield_person</span>
+                    <span>Vault</span>
+                </button>
+            </div>
+        </nav>
+
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- MODAL: ADD / EDIT TRANSACTION                            -->
+    <!-- ======================================================== -->
+    <div id="transactionModal" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] opacity-0 pointer-events-none transition-opacity duration-200 flex items-center justify-center p-4">
+        <div class="bg-white border border-surface-border rounded-sm w-full max-w-lg shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto transform scale-95 transition-transform duration-200">
+            <div class="flex items-center justify-between pb-4 border-b border-surface-border-subtle">
+                <div>
+                    <span class="font-mono text-[10px] uppercase tracking-widest text-text-muted block">Transaction Entry</span>
+                    <h3 class="font-sans text-lg font-semibold text-text-primary" id="modalTitle">Tambah Pengeluaran</h3>
+                </div>
+                <button onclick="closeTransactionModal()" class="w-8 h-8 rounded-sm bg-surface-subtle hover:bg-surface-muted text-text-muted hover:text-text-primary flex items-center justify-center transition-colors" type="button">
+                    <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
+            </div>
+
+            <form id="transactionForm" onsubmit="handleSaveTransaction(event)" class="space-y-4 pt-4">
+                <input type="hidden" id="txId" value=""/>
+
+                <div>
+                    <label class="block font-mono text-[11px] uppercase tracking-wider text-text-secondary font-medium mb-1">Nama Toko / Merchant *</label>
+                    <input type="text" id="txStore" required placeholder="Contoh: Indomaret, Starbucks, Kopi Kenangan" 
+                        class="w-full px-3 py-2 bg-surface-subtle border border-surface-border rounded-sm text-xs font-sans text-text-primary focus:outline-none focus:border-zinc-900 focus:bg-white transition"/>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-mono text-[11px] uppercase tracking-wider text-text-secondary font-medium mb-1">Nominal (Rp) *</label>
+                        <input type="number" id="txAmount" required min="1" step="1" placeholder="Contoh: 25000" 
+                            class="w-full px-3 py-2 bg-surface-subtle border border-surface-border rounded-sm text-xs font-mono font-medium text-text-primary focus:outline-none focus:border-zinc-900 focus:bg-white transition"/>
+                    </div>
+                    <div>
+                        <label class="block font-mono text-[11px] uppercase tracking-wider text-text-secondary font-medium mb-1">Tanggal *</label>
+                        <input type="date" id="txDate" required 
+                            class="w-full px-3 py-2 bg-surface-subtle border border-surface-border rounded-sm text-xs font-mono text-text-primary focus:outline-none focus:border-zinc-900 focus:bg-white transition"/>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-mono text-[11px] uppercase tracking-wider text-text-secondary font-medium mb-1">Kategori *</label>
+                        <select id="txCategory" required class="w-full px-3 py-2 bg-surface-subtle border border-surface-border rounded-sm text-xs font-sans text-text-primary focus:outline-none focus:border-zinc-900 focus:bg-white transition">
+                            <option value="Makanan">Makanan / Dining</option>
+                            <option value="Belanja">Belanja / Groceries</option>
+                            <option value="Transportasi">Transportasi / Transit</option>
+                            <option value="Tagihan">Tagihan / Utilities</option>
+                            <option value="Hiburan">Hiburan / Entertainment</option>
+                            <option value="Kesehatan">Kesehatan / Health</option>
+                            <option value="Lainnya">Lainnya / Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-mono text-[11px] uppercase tracking-wider text-text-secondary font-medium mb-1">Sumber Pipeline</label>
+                        <select id="txSource" class="w-full px-3 py-2 bg-surface-subtle border border-surface-border rounded-sm text-xs font-mono text-text-primary focus:outline-none focus:border-zinc-900 focus:bg-white transition">
+                            <option value="dashboard">Web Direct Entry</option>
+                            <option value="manual">Telegram Manual</option>
+                            <option value="receipt">AI Receipt Scan</option>
+                            <option value="sheet_import">Google Sheet Sync</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-mono text-[11px] uppercase tracking-wider text-text-secondary font-medium mb-1">Rincian Barang / Deskripsi</label>
+                    <textarea id="txItems" rows="3" placeholder="Contoh: Kopi Susu Gula Aren x1, Roti Cokelat x2" 
+                        class="w-full px-3 py-2 bg-surface-subtle border border-surface-border rounded-sm text-xs font-sans text-text-primary focus:outline-none focus:border-zinc-900 focus:bg-white transition"></textarea>
+                </div>
+
+                <div class="pt-3 border-t border-surface-border-subtle flex items-center justify-end gap-2">
+                    <button type="button" onclick="closeTransactionModal()" class="px-4 py-2 bg-white border border-surface-border hover:bg-surface-subtle text-text-secondary font-mono text-xs uppercase tracking-wider rounded-sm transition">
+                        Batal
+                    </button>
+                    <button type="submit" id="btnSaveTx" class="px-5 py-2 bg-zinc-900 hover:bg-zinc-800 text-white font-mono text-xs uppercase tracking-wider font-medium rounded-sm transition shadow-sm flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[15px]">save</span>
+                        <span>Simpan Data</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- MODAL: INSPECT TRANSACTION & OCR DETAIL                   -->
+    <!-- ======================================================== -->
+    <div id="detailModal" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] opacity-0 pointer-events-none transition-opacity duration-200 flex items-center justify-center p-4">
+        <div class="bg-white border border-surface-border rounded-sm w-full max-w-xl shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto transform scale-95 transition-transform duration-200">
+            <div class="flex items-center justify-between pb-4 border-b border-surface-border-subtle">
+                <div>
+                    <span class="font-mono text-[10px] uppercase tracking-widest text-text-muted block">Audit Inspection</span>
+                    <h3 class="font-sans text-lg font-semibold text-text-primary" id="detailStoreName">Merchant Detail</h3>
+                </div>
+                <button onclick="closeDetailModal()" class="w-8 h-8 rounded-sm bg-surface-subtle hover:bg-surface-muted text-text-muted hover:text-text-primary flex items-center justify-center transition-colors" type="button">
+                    <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
+            </div>
+
+            <div class="space-y-4 pt-4 font-sans text-xs">
+                <!-- Overview Header -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-surface-subtle p-3 rounded-sm border border-surface-border font-mono text-[11px]">
+                    <div>
+                        <span class="text-text-muted block text-[10px] uppercase">Total Outflow</span>
+                        <span class="font-semibold text-text-primary text-sm" id="detailAmount">Rp 0</span>
+                    </div>
+                    <div>
+                        <span class="text-text-muted block text-[10px] uppercase">Tanggal</span>
+                        <span class="font-medium text-text-primary" id="detailDate">--</span>
+                    </div>
+                    <div>
+                        <span class="text-text-muted block text-[10px] uppercase">Kategori</span>
+                        <span class="font-medium text-text-primary" id="detailCategory">--</span>
+                    </div>
+                    <div>
+                        <span class="text-text-muted block text-[10px] uppercase">Sumber</span>
+                        <span class="font-medium text-text-primary" id="detailSource">--</span>
+                    </div>
+                </div>
+
+                <!-- Rincian / Nama Barang -->
+                <div class="bg-surface-subtle p-3 rounded-sm border border-surface-border">
+                    <span class="text-text-muted block text-[10px] font-mono uppercase font-semibold mb-1">Rincian / Nama Barang</span>
+                    <div class="font-sans text-xs font-semibold text-text-primary" id="detailItemsDescription">--</div>
+                </div>
+
+                <!-- Itemized Breakdown -->
+                <div>
+                    <h4 class="font-mono text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-2">Itemized Breakdown (`expense_items`)</h4>
+                    <div class="border border-surface-border rounded-sm overflow-hidden" id="detailItemsContainer">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-surface-subtle border-b border-surface-border font-mono text-[10px] uppercase text-text-muted">
+                                    <th class="py-2 px-3">#</th>
+                                    <th class="py-2 px-3">Nama Barang</th>
+                                    <th class="py-2 px-3 text-center">Qty</th>
+                                    <th class="py-2 px-3 text-right">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detailItemsTbody" class="divide-y divide-surface-border-subtle font-mono text-[11px]">
+                                <tr>
+                                    <td colspan="4" class="py-3 text-center text-text-muted">Tidak ada rincian item individual.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- OCR Raw Text -->
+                <div id="detailOcrContainer">
+                    <h4 class="font-mono text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-2 flex items-center justify-between">
+                        <span>Raw OCR Receipt Text (Google Gemini)</span>
+                    </h4>
+                    <pre id="detailReceiptText" class="p-3 bg-surface-subtle border border-surface-border rounded-sm font-mono text-[11px] text-text-secondary whitespace-pre-wrap max-h-48 overflow-y-auto"></pre>
+                </div>
+
+                <div class="pt-3 border-t border-surface-border-subtle flex items-center justify-end">
+                    <button type="button" onclick="closeDetailModal()" class="px-4 py-2 bg-zinc-900 text-white font-mono text-xs uppercase tracking-wider rounded-sm transition">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TOAST NOTIFICATION CONTAINER                             -->
+    <!-- ======================================================== -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

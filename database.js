@@ -1,10 +1,30 @@
 require("dotenv").config()
 
-const fs = require("fs")
-const path = require("path")
-const { DatabaseSync } = require("node:sqlite")
+const { Pool } = require("pg")
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, "data", "expense-bot.sqlite")
+const connectionString = process.env.DATABASE_URL
+const useSsl =
+    process.env.PGSSL === "true" ||
+    (Boolean(connectionString) &&
+        (connectionString.includes("sslmode=require") ||
+            !connectionString.includes("localhost") &&
+            !connectionString.includes("127.0.0.1")))
+
+const poolConfig = connectionString
+    ? {
+          connectionString,
+          ssl: useSsl ? { rejectUnauthorized: false } : false
+      }
+    : {
+          host: process.env.PGHOST || "localhost",
+          user: process.env.PGUSER || "postgres",
+          password: process.env.PGPASSWORD || "postgres",
+          database: process.env.PGDATABASE || "expense_bot",
+          port: parseInt(process.env.PGPORT || "5432", 10),
+          ssl: useSsl ? { rejectUnauthorized: false } : false
+      }
+
+const pool = new Pool(poolConfig)
 
 const BULAN = [
     "Januari",
@@ -21,10 +41,6 @@ const BULAN = [
     "Desember"
 ]
 
-function ensureDatabaseDirectory() {
-    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true })
-}
-
 function formatIndonesianDate(date) {
     return `${date.getDate()} ${BULAN[date.getMonth()]} ${date.getFullYear()}`
 }
@@ -32,7 +48,7 @@ function formatIndonesianDate(date) {
 function parseIndonesianDate(value) {
     if (!value) return new Date(0)
 
-    const parts = value.split(" ")
+    const parts = String(value).trim().split(" ")
     if (parts.length !== 3) return new Date(value)
 
     const day = parseInt(parts[0], 10)
@@ -48,8 +64,16 @@ function toIsoDate(value) {
         return now.toISOString().slice(0, 10)
     }
 
-    if (value instanceof Date) return value.toISOString().slice(0, 10)
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+    if (value instanceof Date) {
+        const year = value.getFullYear()
+        const month = String(value.getMonth() + 1).padStart(2, "0")
+        const day = String(value.getDate()).padStart(2, "0")
+        return `${year}-${month}-${day}`
+    }
+
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+        return value.slice(0, 10)
+    }
 
     const parsed = parseIndonesianDate(value)
     if (Number.isNaN(parsed.getTime())) {
@@ -63,133 +87,62 @@ function toIsoDate(value) {
     return `${year}-${month}-${day}`
 }
 
-ensureDatabaseDirectory()
+let isInitialized = false
+let initPromise = null
 
-const db = new DatabaseSync(DB_PATH)
+async function initDatabase() {
+    if (isInitialized) return
+    if (initPromise) return initPromise
 
-db.exec(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA foreign_keys = ON;
+    initPromise = (async () => {
+        const client = await pool.connect()
+        try {
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS expenses (
+                    id SERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL DEFAULT 0,
+                    chat_id BIGINT NOT NULL DEFAULT 0,
+                    source VARCHAR(50) NOT NULL DEFAULT 'manual',
+                    store_name VARCHAR(255) NOT NULL,
+                    items TEXT NOT NULL,
+                    total_amount BIGINT NOT NULL CHECK(total_amount >= 0),
+                    expense_date DATE NOT NULL,
+                    expense_date_label VARCHAR(100) NOT NULL,
+                    category VARCHAR(100),
+                    receipt_text TEXT,
+                    import_hash VARCHAR(255) UNIQUE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
 
-    CREATE TABLE IF NOT EXISTS expenses (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL DEFAULT 0,
-        chat_id INTEGER NOT NULL DEFAULT 0,
-        source TEXT NOT NULL DEFAULT 'manual',
-        store_name TEXT NOT NULL,
-        items TEXT NOT NULL,
-        total_amount INTEGER NOT NULL CHECK(total_amount >= 0),
-        expense_date TEXT NOT NULL,
-        expense_date_label TEXT NOT NULL,
-        category TEXT,
-        receipt_text TEXT,
-        import_hash TEXT UNIQUE,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+                CREATE INDEX IF NOT EXISTS idx_expenses_user_chat_date
+                ON expenses(user_id, chat_id, expense_date DESC);
 
-    CREATE INDEX IF NOT EXISTS idx_expenses_user_chat_date
-    ON expenses(user_id, chat_id, expense_date DESC);
+                CREATE INDEX IF NOT EXISTS idx_expenses_source
+                ON expenses(source, expense_date DESC);
 
-    CREATE INDEX IF NOT EXISTS idx_expenses_source
-    ON expenses(source, expense_date DESC);
+                CREATE TABLE IF NOT EXISTS expense_items (
+                    id SERIAL PRIMARY KEY,
+                    expense_id INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+                    line_number INTEGER NOT NULL,
+                    item_name VARCHAR(255) NOT NULL,
+                    quantity INTEGER,
+                    line_total BIGINT,
+                    raw_text TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
 
-    CREATE TABLE IF NOT EXISTS expense_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        expense_id INTEGER NOT NULL,
-        line_number INTEGER NOT NULL,
-        item_name TEXT NOT NULL,
-        quantity INTEGER,
-        line_total INTEGER,
-        raw_text TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE CASCADE
-    );
+                CREATE INDEX IF NOT EXISTS idx_expense_items_expense_id
+                ON expense_items(expense_id, line_number ASC);
+            `)
+            isInitialized = true
+        } finally {
+            client.release()
+        }
+    })()
 
-    CREATE INDEX IF NOT EXISTS idx_expense_items_expense_id
-    ON expense_items(expense_id, line_number ASC);
-`)
-
-const insertExpenseStatement = db.prepare(`
-    INSERT INTO expenses (
-        user_id,
-        chat_id,
-        source,
-        store_name,
-        items,
-        total_amount,
-        expense_date,
-        expense_date_label,
-        category,
-        receipt_text,
-        import_hash
-    ) VALUES (
-        @userId,
-        @chatId,
-        @source,
-        @storeName,
-        @items,
-        @totalAmount,
-        @expenseDate,
-        @expenseDateLabel,
-        @category,
-        @receiptText,
-        @importHash
-    )
-    ON CONFLICT(import_hash) DO NOTHING
-`)
-
-const selectExpensesStatement = db.prepare(`
-    SELECT
-        id,
-        user_id AS userId,
-        chat_id AS chatId,
-        source,
-        store_name AS toko,
-        items,
-        total_amount AS total,
-        expense_date AS tanggalIso,
-        expense_date_label AS tanggal,
-        category,
-        receipt_text AS receiptText,
-        created_at AS createdAt,
-        updated_at AS updatedAt
-    FROM expenses
-    ORDER BY expense_date ASC, id ASC
-`)
-
-const insertExpenseItemStatement = db.prepare(`
-    INSERT INTO expense_items (
-        expense_id,
-        line_number,
-        item_name,
-        quantity,
-        line_total,
-        raw_text
-    ) VALUES (
-        @expenseId,
-        @lineNumber,
-        @itemName,
-        @quantity,
-        @lineTotal,
-        @rawText
-    )
-`)
-
-const selectExpenseItemsStatement = db.prepare(`
-    SELECT
-        id,
-        expense_id AS expenseId,
-        line_number AS lineNumber,
-        item_name AS itemName,
-        quantity,
-        line_total AS lineTotal,
-        raw_text AS rawText,
-        created_at AS createdAt
-    FROM expense_items
-    WHERE expense_id = ?
-    ORDER BY line_number ASC, id ASC
-`)
+    return initPromise
+}
 
 function normalizeExpense(data = {}) {
     const totalAmount = Number(String(data.total ?? 0).replace(/[^\d-]/g, ""))
@@ -216,40 +169,130 @@ function normalizeExpense(data = {}) {
 }
 
 async function addExpense(data) {
+    await initDatabase()
     const payload = normalizeExpense(data)
-    const result = insertExpenseStatement.run(payload)
-    const expenseId = Number(result.lastInsertRowid || 0)
 
-    if (result.changes > 0 && Array.isArray(data.itemDetails)) {
+    const insertExpenseQuery = `
+        INSERT INTO expenses (
+            user_id,
+            chat_id,
+            source,
+            store_name,
+            items,
+            total_amount,
+            expense_date,
+            expense_date_label,
+            category,
+            receipt_text,
+            import_hash
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        ON CONFLICT (import_hash) DO NOTHING
+        RETURNING id;
+    `
+
+    const values = [
+        payload.userId,
+        payload.chatId,
+        payload.source,
+        payload.storeName,
+        payload.items,
+        payload.totalAmount,
+        payload.expenseDate,
+        payload.expenseDateLabel,
+        payload.category,
+        payload.receiptText,
+        payload.importHash
+    ]
+
+    const result = await pool.query(insertExpenseQuery, values)
+    const insertedRow = result.rows[0]
+    const expenseId = insertedRow ? insertedRow.id : 0
+
+    if (expenseId && Array.isArray(data.itemDetails) && data.itemDetails.length > 0) {
         for (const item of data.itemDetails) {
-            insertExpenseItemStatement.run({
-                expenseId,
-                lineNumber: Number(item.lineNumber || 0),
-                itemName: item.name || item.itemName || "Unknown",
-                quantity: item.quantity ?? null,
-                lineTotal: item.lineTotal ?? null,
-                rawText: item.rawText || null
-            })
+            await pool.query(
+                `
+                INSERT INTO expense_items (
+                    expense_id,
+                    line_number,
+                    item_name,
+                    quantity,
+                    line_total,
+                    raw_text
+                ) VALUES ($1, $2, $3, $4, $5, $6)
+            `,
+                [
+                    expenseId,
+                    Number(item.lineNumber || 0),
+                    item.name || item.itemName || "Unknown",
+                    item.quantity ?? null,
+                    item.lineTotal ?? null,
+                    item.rawText || null
+                ]
+            )
         }
     }
 
     return {
         id: expenseId,
-        inserted: result.changes > 0
+        inserted: Boolean(expenseId)
     }
 }
 
 async function getExpenses() {
-    return selectExpensesStatement.all()
+    await initDatabase()
+    const query = `
+        SELECT
+            id,
+            user_id AS "userId",
+            chat_id AS "chatId",
+            source,
+            store_name AS toko,
+            items,
+            total_amount AS total,
+            TO_CHAR(expense_date, 'YYYY-MM-DD') AS "tanggalIso",
+            expense_date_label AS tanggal,
+            category,
+            receipt_text AS "receiptText",
+            created_at AS "createdAt",
+            updated_at AS "updatedAt"
+        FROM expenses
+        ORDER BY expense_date ASC, id ASC
+    `
+    const result = await pool.query(query)
+    return result.rows.map(row => ({
+        ...row,
+        total: Number(row.total)
+    }))
 }
 
 async function getExpenseItems(expenseId) {
-    return selectExpenseItemsStatement.all(expenseId)
+    await initDatabase()
+    const query = `
+        SELECT
+            id,
+            expense_id AS "expenseId",
+            line_number AS "lineNumber",
+            item_name AS "itemName",
+            quantity,
+            line_total AS "lineTotal",
+            raw_text AS "rawText",
+            created_at AS "createdAt"
+        FROM expense_items
+        WHERE expense_id = $1
+        ORDER BY line_number ASC, id ASC
+    `
+    const result = await pool.query(query, [expenseId])
+    return result.rows.map(row => ({
+        ...row,
+        lineTotal: row.lineTotal !== null ? Number(row.lineTotal) : null
+    }))
 }
 
 function getDatabaseInfo() {
     return {
-        path: DB_PATH,
+        type: "PostgreSQL",
+        url: connectionString ? "(configured via DATABASE_URL)" : `postgres://${process.env.PGHOST || "localhost"}:${process.env.PGPORT || 5432}/${process.env.PGDATABASE || "expense_bot"}`,
         table: "expenses",
         columns: [
             "id",
@@ -272,10 +315,13 @@ function getDatabaseInfo() {
 }
 
 module.exports = {
+    pool,
+    initDatabase,
     addExpense,
     getExpenses,
     getExpenseItems,
     getDatabaseInfo,
     formatIndonesianDate,
-    parseIndonesianDate
+    parseIndonesianDate,
+    toIsoDate
 }

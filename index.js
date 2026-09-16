@@ -56,16 +56,30 @@ function buildReceiptExpenseRows({ toko, total, itemDetails, basePayload }) {
     }
 
     const grandTotal = parseCurrency(total)
-    const knownTotal = itemDetails.reduce((sum, item) => sum + (item.lineTotal || 0), 0)
-    const missingItems = itemDetails.filter((item) => !item.lineTotal)
+    const knownItems = itemDetails.filter((item) => item.lineTotal != null)
+    const missingItems = itemDetails.filter((item) => item.lineTotal == null)
+
+    if (knownItems.length === 0) {
+        return [
+            {
+                ...basePayload,
+                toko,
+                items: itemDetails.map((item) => item.name).join(", "),
+                total,
+                receiptText: itemDetails.map((item) => item.rawText).join("\n")
+            }
+        ]
+    }
+
+    const knownTotal = itemDetails.reduce((sum, item) => sum + (item.lineTotal ?? 0), 0)
     const remainder = Math.max(grandTotal - knownTotal, 0)
     const sharedAmount = missingItems.length > 0 ? Math.floor(remainder / missingItems.length) : 0
     let leftover = missingItems.length > 0 ? remainder - (sharedAmount * missingItems.length) : 0
 
     return itemDetails.map((item) => {
-        let itemTotal = item.lineTotal || 0
+        let itemTotal = item.lineTotal ?? 0
 
-        if (!item.lineTotal && missingItems.length > 0) {
+        if (item.lineTotal == null && missingItems.length > 0) {
             itemTotal = sharedAmount
             if (leftover > 0) {
                 itemTotal += 1
@@ -83,8 +97,23 @@ function buildReceiptExpenseRows({ toko, total, itemDetails, basePayload }) {
     })
 }
 
+function isDiscountItem(name) {
+    return /\bdisc\b/i.test(String(name || ""))
+}
+
+function getSignedAmount(row) {
+    const amount = parseCurrency(row.total)
+    return isDiscountItem(row.items) ? -amount : amount
+}
+
+function formatAmountDisplay(row) {
+    const amount = getSignedAmount(row)
+    const absolute = Math.abs(amount).toLocaleString("id-ID")
+    return amount < 0 ? `-Rp ${absolute}` : `Rp ${absolute}`
+}
+
 const databaseInfo = getDatabaseInfo()
-console.log(`Bot berjalan dengan SQLite di ${databaseInfo.path}`)
+console.log(`Bot berjalan dengan ${databaseInfo.type} (${databaseInfo.url})`)
 
 bot.on("polling_error", (err) => {
     console.log("Polling error:", err?.message || err)
@@ -139,9 +168,9 @@ bot.on("message", async (msg) => {
                 if (!row?.tanggal) return
 
                 if (row.tanggal.includes(`${monthName} ${year}`)) {
-                    const amount = parseCurrency(row.total)
+                    const amount = getSignedAmount(row)
                     total += amount
-                    list.push(`- ${row.items} - Rp ${amount.toLocaleString("id-ID")}`)
+                    list.push(`- ${row.items} - ${formatAmountDisplay(row)}`)
                 }
             })
 
@@ -235,7 +264,7 @@ bot.on("photo", async (msg) => {
 
         bot.sendMessage(
             chatId,
-            `✅ Struk berhasil disimpan ke database SQLite.
+            `✅ Struk berhasil disimpan ke database.
 
 Item tersimpan: ${expenseRows.length}`
         )
@@ -264,9 +293,9 @@ bot.onText(/^\/today$/, async (msg) => {
             if (!row?.tanggal) return
 
             if (row.tanggal === todayStr) {
-                const amount = parseCurrency(row.total)
+                const amount = getSignedAmount(row)
                 total += amount
-                list.push(`- ${row.items} - Rp ${amount.toLocaleString("id-ID")}`)
+                list.push(`- ${row.items} - ${formatAmountDisplay(row)}`)
             }
         })
 
@@ -301,7 +330,7 @@ bot.onText(/^\/month$/, async (msg) => {
 
         rows.forEach((row) => {
             if (!row?.tanggal) return
-            if (row.tanggal.includes(monthYear)) total += parseCurrency(row.total)
+            if (row.tanggal.includes(monthYear)) total += getSignedAmount(row)
         })
 
         bot.sendMessage(
@@ -340,9 +369,9 @@ bot.onText(/^\/week$/, async (msg) => {
 
             const itemDate = parseIndonesianDate(row.tanggal)
             if (itemDate >= monday) {
-                const amount = parseCurrency(row.total)
+                const amount = getSignedAmount(row)
                 total += amount
-                list.push(`- ${row.items} - Rp ${amount.toLocaleString("id-ID")}`)
+                list.push(`- ${row.items} - ${formatAmountDisplay(row)}`)
             }
         })
 
@@ -383,7 +412,7 @@ Kirim foto struk, bot akan membaca otomatis.
 /monthlyexpense - melihat total pengeluaran bulan spesifik
 
 💾 *Penyimpanan*
-Data utama sekarang disimpan di database SQLite lokal.
+Data utama disimpan di database PostgreSQL.
 
 💡 Tips:
 Pastikan selalu menuliskan nominal di akhir pesan.`,
